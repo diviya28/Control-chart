@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Control Chart Selection</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .chart-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .chart-buttons button {
+      padding: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .input-fields {
+      display: none;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="C:\Users\diviy\OneDrive\Desktop\C_Chart\line chart.png" alt="chart img">
+    <h2>Select Control Chart</h2>
+
+    <!-- Chart selection buttons -->
+    <div class="chart-buttons">
+      <button onclick="showFields('c')">C Chart</button>
+      <button onclick="showFields('p')">P Chart</button>
+      <button onclick="showFields('np')">NP Chart</button>
+      <button onclick="showFields('xbar-r')">X̄ & R Chart</button>
+    </div>
+
+    <!-- Input fields for C Chart -->
+    <div id="c-fields" class="input-fields">
+      <h3>C Chart Inputs</h3>
+      <label for="c-value">Enter C values (comma-separated):</label>
+      <input type="text" id="c-value" placeholder="e.g., 3,5,2,4">
+    </div>
+
+    <!-- Input fields for P Chart -->
+    <div id="p-fields" class="input-fields">
+      <h3>P Chart Inputs</h3>
+      <label for="p-defectives">Defectives (comma-separated):</label>
+      <input type="text" id="p-defectives" placeholder="e.g., 5,4,6,3"><br><br>
+      <label for="p-sizes">Sample Sizes (comma-separated):</label>
+      <input type="text" id="p-sizes" placeholder="e.g., 100,100,100,100">
+    </div>
+
+    <!-- Input fields for NP Chart -->
+    <div id="np-fields" class="input-fields">
+      <h3>NP Chart Inputs</h3>
+      <label for="np-defectives">Defectives (comma-separated):</label>
+      <input type="text" id="np-defectives" placeholder="e.g., 5,6,7,4"><br><br>
+      <label for="np-sizes">Sample Sizes (comma-separated):</label>
+      <input type="text" id="np-sizes" placeholder="e.g., 100,100,100,100">
+    </div>
+
+    <!-- Input fields for X̄ & R Chart -->
+    <div id="xbar-r-fields" class="input-fields">
+      <h3>X̄ & R Chart Inputs</h3>
+      <label for="x-bar">Enter X̄ values (comma-separated):</label>
+      <input type="text" id="x-bar" placeholder="e.g., 10,12,11,13"><br><br>
+      <label for="r-value">Enter R values (comma-separated):</label>
+      <input type="text" id="r-value" placeholder="e.g., 2,3,1,4">
+    </div>
+
+    <button onclick="redirectToChartPage()">Next</button>
+  </div>
+
+  <script>
+    let selectedChartType = '';
+
+    function showFields(chartType) {
+      selectedChartType = chartType;
+
+      document.querySelectorAll('.input-fields').forEach(field => {
+        field.style.display = 'none';
+      });
+
+      if (chartType) {
+        document.getElementById(`${chartType}-fields`).style.display = 'block';
+      }
+    }
+
+    function redirectToChartPage() {
+      const chartType = selectedChartType;
+
+      switch(chartType) {
+        case "c":
+          const cValue = document.getElementById("c-value").value;
+          if (!cValue) {
+            alert("Please enter C values.");
+            return;
+          }
+          localStorage.setItem("defectInput", cValue);
+          window.location.href = "result.html";
+          break;
+
+        case "p":
+          const defectives = document.getElementById("p-defectives").value.split(',');
+          const sizes = document.getElementById("p-sizes").value.split(',');
+
+          if (defectives.length !== sizes.length) {
+            alert("Mismatch in number of defectives and sample sizes");
+            return;
+          }
+
+          const combined = defectives.map((d, i) => `${d.trim()}-${sizes[i].trim()}`).join(',');
+          localStorage.setItem("defectInput", combined);
+          window.location.href = "pChart.html";
+          break;
+
+        case "np":
+          const defective = document.getElementById("np-defectives").value.split(',');
+          const size = document.getElementById("np-sizes").value.split(',');
+
+          if (defective.length !== size.length) {
+            alert("Mismatch in number of defectives and sample sizes");
+            return;
+          }
+
+          const combine = defective.map((d, i) => `${d.trim()}-${size[i].trim()}`).join(',');
+          localStorage.setItem("npInput", combine);
+          window.location.href = "npChart.html";
+          break;
+
+        case "xbar-r":
+          const xValue = document.getElementById("x-bar").value;
+          const rValue = document.getElementById("r-value").value;
+
+          if (!xValue || !rValue) {
+            alert("Please enter both X̄ and R values.");
+            return;
+          }
+
+          localStorage.setItem("xbarInput", xValue);
+          localStorage.setItem("rInput", rValue);
+          window.location.href = "x-barChart.html";
+          break;
+
+        default:
+          alert("Please select a valid chart type.");
+      }
+    }
+  </script>
+</body>
+</html>

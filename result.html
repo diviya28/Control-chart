@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Results - C Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;      ;
+      background-color: #FFFFE0;
+    }
+    .container {
+      max-width: 1500px;
+      height: 650px;
+      background: #FFFFE0;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+    }
+
+    .result-wrapper {
+      display: flex;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .half-box {
+      background: #FFFFE0;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.05);
+      overflow-y: auto;
+      max-height: 80vh;
+    }
+
+    .half-box.left {
+      width: 40%;
+      font-size : 22px; 
+    }
+
+    .half-box.right {
+      width: 60%;
+      overflow-x: auto; /* Enable horizontal scroll */
+    }
+
+    .output, .steps {
+      margin-bottom: 20px;
+    }
+
+    canvas {
+      width: 1800px;  /* Wider chart to prevent overlap */
+      height: 500px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" >
+    <div class="result-wrapper">
+      <div class="half-box left">
+        <h2>Chart & Results</h2>
+        <div class="output" id="output"></div>
+        <div class="steps" id="steps"></div>
+      </div>
+      <div class="half-box right">
+        <canvas id="cChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let chart;
+    const input = localStorage.getItem("defectInput");
+    const values = input.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+
+    const n = values.length;
+    const total = values.reduce((sum, val) => sum + val, 0);
+    const cBar = total / n;
+    const stdDev = Math.sqrt(cBar);
+    const ucl = cBar + 3 * stdDev;
+    let lcl = cBar - 3 * stdDev;
+    if (lcl < 0) lcl = 0;
+
+    const outOfControl = values.some(c => c < lcl || c > ucl);
+    const status = outOfControl ? "🚨 Process is <b>not</b> under control." : "✅ Process is under control.";
+
+    document.getElementById("output").innerHTML = `
+      <strong>Summary:</strong><br>
+      ➤ Average Defects (c̄): <b>${cBar.toFixed(2)}</b><br>
+
+      ➤ Upper Control Limit (UCL): <b>${ucl.toFixed(2)}</b><br>
+      ➤ Lower Control Limit (LCL): <b>${lcl.toFixed(2)}</b><br><br>
+      <strong>Status:</strong> ${status}
+    `;
+
+    document.getElementById("steps").innerHTML = `
+      <strong>Step-by-Step Calculation:</strong><br>
+      1. Total = ${values.join(" + ")} = <b>${total}</b><br>
+      2. n = <b>${n}</b><br>
+      3. c̄ = ${total} / ${n} = <b>${cBar.toFixed(2)}</b><br>
+      4. σ = √${cBar.toFixed(2)} = <b>${stdDev.toFixed(4)}</b><br>
+      5. UCL = c̄ + 3σ = <b>${ucl.toFixed(2)}</b><br>
+      6. LCL = c̄ - 3σ = <b>${lcl.toFixed(2)}</b><br>
+    `;
+
+    const labels = values.map((_, i) => `${i + 1}`);
+    labels.push((n + 1).toString());
+    const uclLine = Array(n).fill(ucl);
+    const lclLine = Array(n).fill(lcl);
+    const avgLine = Array(n).fill(cBar);
+
+    const ctx = document.getElementById("cChart").getContext("2d");
+
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Defects per Roll',
+            data: values,
+            borderColor: '#007bff',
+            backgroundColor: 'rgba(0,123,255,0.1)',
+            borderWidth: 2,
+            tension: 0.2
+          },
+          {
+            label: 'UCL',
+            data: uclLine,
+            borderColor: '#dc3545',
+            borderDash: [5, 5],
+            pointRadius: 0
+          },
+          {
+            label: 'LCL',
+            data: lclLine,
+            borderColor: '#28a745',
+            borderDash: [5, 5],
+            pointRadius: 0
+          },
+          {
+            label: 'Average (c̄)',
+            data: avgLine,
+            borderColor: '#ffc107',
+            borderDash: [2, 2],
+            pointRadius: 0
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          title: {
+            display: true,
+            text: 'C Chart - Control Chart for Defects'
+          },
+          annotation: {
+            annotations: {
+              uclLabel: {
+                type: 'label',
+                xValue: labels[n - 1],
+                yValue: ucl + 0.5,
+                content: `UCL = ${ucl.toFixed(2)}`,
+                backgroundColor: 'rgba(220,53,69,0.8)',
+                color: '#fff',
+                font: { weight: 'bold' },
+                xAdjust: 10,
+                yAdjust: -15
+              },
+              lclLabel: {
+                type: 'label',
+                xValue: labels[n - 1],
+                yValue: lcl + 0.5,
+                content: `LCL = ${lcl.toFixed(2)}`,
+                backgroundColor: 'rgba(40,167,69,0.8)',
+                color: '#fff',
+                font: { weight: 'bold' },
+                xAdjust: 10,
+                yAdjust: -15
+              },
+              cbarLabel: {
+                type: 'label',
+                xValue: labels[n - 1],
+                yValue: cBar + 0.5,
+                content: `y= CL= ${cBar.toFixed(2)}`,
+                backgroundColor: 'rgba(255,193,7,0.8)',
+                color: '#000',
+                font: { weight: 'bold' },
+                xAdjust: 10,
+                yAdjust: -15
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Rolls'
+            },
+            ticks: {
+              autoSkip: false,
+              maxRotation: 45,
+              minRotation: 45,
+              padding: 10,
+              font: {
+                size: 12
+              }
+            },
+            offset: true
+          },
+          y: {
+            beginAtZero: true,
+            suggestedMax: ucl + 5,
+            title: {
+              display: true,
+              text: 'Defects'
+            }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

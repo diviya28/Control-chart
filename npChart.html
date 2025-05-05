@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Results - NP Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;      ;
+      background-color: #FFFFE0;
+    }
+    .container {
+      max-width: 1500px;
+      height: 650px;
+      background: #FFFFE0;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+    }
+
+    .result-wrapper {
+      display: flex;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .half-box {
+      background: #FFFFE0;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.05);
+      overflow-y: auto;
+      max-height: 80vh;
+    }
+
+    .half-box.left {
+      width: 40%;
+      font-size: 22px;
+    }
+
+    .half-box.right {
+      width: 60%;
+      overflow-x: auto;
+    }
+
+    .output, .steps {
+      margin-bottom: 20px;
+    }
+
+    canvas {
+      width: 1800px;
+      height: 500px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="result-wrapper">
+      <div class="half-box left">
+        <h2>Chart & Results</h2>
+        <div class="output" id="output"></div>
+        <div class="steps" id="steps"></div>
+      </div>
+      <div class="half-box right">
+        <canvas id="npChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const input = localStorage.getItem("defectInput");
+
+    if (!input) {
+      document.getElementById("output").innerHTML = "<b>Error:</b> No input data found in localStorage.";
+      throw new Error("No defect input found.");
+    }
+
+    const values = input.split(',').map((v, index) => {
+      const [defRaw, sizeRaw] = v.trim().split('-');
+      const def = parseInt(defRaw);
+      const size = parseInt(sizeRaw);
+
+      return {
+        defectives: isNaN(def) ? 0 : def,
+        sampleSize: isNaN(size) || size <= 0 ? 1 : size
+      };
+    });
+
+    const totalDefectives = values.reduce((sum, v) => sum + v.defectives, 0);
+    const totalSamples = values.reduce((sum, v) => sum + v.sampleSize, 0);
+    const avgSampleSize = totalSamples / values.length;
+
+    if (totalSamples === 0) {
+      document.getElementById("output").innerHTML = "<b>Error:</b> Total sample size is zero.";
+      throw new Error("Total sample size is zero.");
+    }
+
+    const pBar = totalDefectives / totalSamples;
+    const npBar = pBar * avgSampleSize;
+    const stdDev = Math.sqrt(pBar * (1 - pBar) * avgSampleSize);
+    const ucl = npBar + 3 * stdDev;
+    let lcl = npBar - 3 * stdDev;
+    if (lcl < 0) lcl = 0;
+
+    const outOfControl = values.some(v => v.defectives < lcl || v.defectives > ucl);
+    const status = outOfControl ? "🚨 Process is <b>not</b> under control." : "✅ Process is under control.";
+
+    document.getElementById("output").innerHTML = `
+      <strong>Summary:</strong><br>
+      ➤ Total Defectives: <b>${totalDefectives}</b><br>
+      ➤ Total Samples: <b>${totalSamples}</b><br>
+      ➤ np̄ (Average Number of Defectives): <b>${npBar.toFixed(4)}</b><br><br>
+      ➤ Upper Control Limit (UCL): <b>${ucl.toFixed(4)}</b><br>
+      ➤ Lower Control Limit (LCL): <b>${lcl.toFixed(4)}</b><br><br>
+      <strong>Status:</strong> ${status}
+    `;
+
+    document.getElementById("steps").innerHTML = `
+      <strong>Step-by-Step Calculation:</strong><br>
+      1. Total Defectives = ${values.map(v => v.defectives).join(" + ")} = <b>${totalDefectives}</b><br>
+      2. n = <b>${values.length}</b><br>
+      3. np̄ = ${npBar.toFixed(4)}<br>
+      4. σ = √[np̄(1 - p̄) / avgSampleSize] = <b>${stdDev.toFixed(4)}</b><br>
+      5. UCL = np̄ + 3σ = <b>${ucl.toFixed(4)}</b><br>
+      6. LCL = np̄ - 3σ = <b>${lcl.toFixed(4)}</b><br>
+    `;
+
+    const labels = values.map((_, i) => `Group ${i + 1}`);
+    const uclLine = Array(values.length).fill(ucl);
+    const lclLine = Array(values.length).fill(lcl);
+    const avgLine = Array(values.length).fill(npBar);
+
+    const ctx = document.getElementById("npChart").getContext("2d");
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Number of Defectives (n)',
+            data: values.map(v => v.defectives),
+            borderColor: '#007bff',
+            backgroundColor: 'rgba(0,123,255,0.1)',
+            borderWidth: 2,
+            tension: 0.2,
+            pointBackgroundColor: '#007bff'
+          },
+          {
+            label: 'UCL',
+            data: uclLine,
+            borderColor: '#dc3545',
+            borderDash: [5, 5],
+            pointRadius: 0,
+            pointBackgroundColor: '#dc3545'
+          },
+          {
+            label: 'LCL',
+            data: lclLine,
+            borderColor: '#28a745',
+            borderDash: [5, 5],
+            pointRadius: 0,
+            pointBackgroundColor: '#28a745'
+          },
+          {
+            label: 'np̄ (CL)',
+            data: avgLine,
+            borderColor: '#ffc107',
+            borderDash: [2, 2],
+            pointRadius: 0,
+            pointBackgroundColor: '#ffc107'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          title: {
+            display: true,
+            text: 'NP Chart - Control Chart for Number of Defectives'
+          },
+          datalabels: {
+            display: function(ctx) {
+              const isLast = ctx.dataIndex === ctx.chart.data.labels.length - 1;
+              return isLast && ctx.dataset.label !== 'Number of Defectives (n)';
+            },
+            align: 'top',
+            anchor: 'end',
+            backgroundColor: function(ctx) {
+              const label = ctx.dataset.label;
+              return label === 'UCL' ? '#dc3545' :
+                     label === 'LCL' ? '#28a745' :
+                     label === 'np̄ (CL)' ? '#ffc107' : '#000';
+            },
+            color: '#fff',
+            borderRadius: 4,
+            font: {
+              weight: 'bold',
+              size: 12
+            },
+            formatter: function(value, ctx) {
+              const label = ctx.dataset.label;
+              if (label === 'UCL') return `UCL = ${ucl.toFixed(3)}`;
+              if (label === 'LCL') return `LCL = ${lcl.toFixed(3)}`;
+              if (label === 'np̄ (CL)') return `CL = ${npBar.toFixed(3)}`;
+              return '';
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Samples'
+            }
+          },
+          y: {
+            beginAtZero: true,
+            suggestedMax: ucl + 5,
+            title: {
+              display: true,
+              text: 'Number of Defectives'
+            }
+          }
+        }
+      },
+      plugins: [ChartDataLabels]
+    });
+  </script>
+</body>
+</html>
